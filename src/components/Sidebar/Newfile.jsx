@@ -1,113 +1,112 @@
-import React, { useState } from 'react'
-import '../../styles/NewFile.css'
+import React, { useState } from 'react';
+import '../../styles/newfile.css';
 
-import AddIcon from '@material-ui/icons/Add';
+import AddIcon from '@mui/icons-material/Add';
 
-import firebase from 'firebase'
-import { storage, db } from '../../firebase'
+import { storage, db } from '../../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, getMetadata } from 'firebase/storage';
+import { Modal, Box, Button, Typography, Input } from '@mui/material';
 
-import { makeStyles } from '@material-ui/core/styles';
-import Modal from '@material-ui/core/Modal';
-
-function getModalStyle() {
-    return {
-        top: `50%`,
-        left: `50%`,
-        transform: `translate(-50%, -50%)`,
-    };
-}
-
-const useStyles = makeStyles((theme) => ({
-    paper: {
-        position: 'absolute',
-        width: 400,
-        backgroundColor: theme.palette.background.paper,
-        border: '2px solid #000',
-        boxShadow: theme.shadows[5],
-        padding: theme.spacing(2, 4, 3),
-    },
-}));
-
+const modalStyle = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
 
 const NewFile = () => {
-    const classes = useStyles();
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-    const [modalStyle] = useState(getModalStyle);
-    const [open, setOpen] = useState(false);
-    const [file, setFile] = useState(null)
-    const [uploading, setUploading] = useState(false)
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
 
-    const handleOpen = () => {
-        setOpen(true);
-    };
-
-    const handleClose = () => {
-        setOpen(false);
-    };
-
-    const handleChange = (e) => {
-        if (e.target.files[0]) {
-            setFile(e.target.files[0])
-        }
+  const handleChange = (e) => {
+    if (e.target.files[0]) {
+      setFile(e.target.files[0]);
     }
+  };
 
-    const handleUpload = () => {
-        setUploading(true)
+  const handleUpload = () => {
+    setUploading(true);
 
-        storage.ref(`files/${file.name}`).put(file).then(snapshot => {
-            console.log(snapshot)
+    const storageRef = ref(storage, `files/${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
 
-            storage.ref('files').child(file.name).getDownloadURL().then(url => {
-                //post image inside the db
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+      },
+      (error) => {
+        console.error(error);
+        setUploading(false);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          console.log('File available at', downloadURL);
 
-                db.collection('myFiles').add({
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    caption: file.name,
-                    fileUrl: url,
-                    size: snapshot._delegate.bytesTransferred,
-                })
+          addDoc(collection(db, 'myFiles'), {
+            timestamp: serverTimestamp(),
+            caption: file.name,
+            fileUrl: downloadURL,
+            size: uploadTask.snapshot.bytesTransferred,
+          }).then(() => {
+            setUploading(false);
+            setOpen(false);
+            setFile(null);
+          }).catch((error) => {
+            console.error("Error adding document: ", error);
+            setUploading(false);
+          });
+        }).catch((error) => {
+          console.error("Error getting download URL: ", error);
+          setUploading(false);
+        });
+      }
+    );
 
-                setUploading(false)
-                setOpen(false)
-                setFile(null)
-            })
+    getMetadata(storageRef).then((metadata) => {
+      console.log(metadata.size);
+    }).catch((error) => {
+      console.error("Error getting metadata: ", error);
+    });
+  };
 
-            storage.ref('files').child(file.name).getMetadata().then(meta => {
-                console.log(meta.size)
-            })
+  return (
+    <div className='newFile'>
+      <div className="newFile__container" onClick={handleOpen}>
+        <AddIcon fontSize='large' />
+        <p>New</p>
+      </div>
 
-        })
-    }
+      <Modal open={open} onClose={handleClose} aria-labelledby="modal-modal-title" aria-describedby="modal-modal-description">
+        <Box sx={modalStyle}>
+          <Typography id="modal-modal-title" variant="h6" component="h2">
+            Select files you want to upload!
+          </Typography>
+          {
+            uploading ? (
+              <Typography>Uploading...</Typography>
+            ) : (
+              <>
+                <Input type="file" onChange={handleChange} />
+                <Button onClick={handleUpload}>Upload</Button>
+              </>
+            )
+          }
+        </Box>
+      </Modal>
+    </div>
+  );
+};
 
-    return (
-        <div className='newFile'>
-            <div className="newFile__container" onClick={handleOpen}>
-                <AddIcon fontSize='large' />
-                <p>New</p>
-            </div>
-
-            <Modal
-                open={open}
-                onClose={handleClose}
-                aria-labelledby="simple-modal-title"
-                aria-describedby="simple-modal-description"
-            >
-                <div style={modalStyle} className={classes.paper}>
-                    <p>Select files you want to upload!</p>
-                    {
-                        uploading ? (
-                            <p>Uploading...</p>
-                        ) : (
-                                <>
-                                    <input type="file" onChange={handleChange} />
-                                    <button onClick={handleUpload}>Upload</button>
-                                </>
-                            )
-                    }
-                </div>
-            </Modal>
-        </div>
-    )
-}
-
-export default NewFile
+export default NewFile;
