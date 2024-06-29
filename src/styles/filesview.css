@@ -2,6 +2,12 @@
     width: 100%;
 }
 
+.fileView__recents{
+    margin-top: 20px;
+    font-size: large;
+    padding-left: 2px;
+}
+
 .fileView__row{
     height: 250px;
     display: flex;

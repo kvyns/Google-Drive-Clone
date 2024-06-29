@@ -24,7 +24,11 @@ const FilesView = () => {
 
     return (
         <div className='fileView'>
+            <div className="fileView__recents">
+                Recent Files
+            </div>
             <div className="fileView__row">
+                
                 {
                     files.slice(0, 5).map(({ id, item }) => (
                         <FileCard key={id} name={item.caption} /> // Added key for list rendering
