@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../../firebase';
 import FileItem from './FileItem';
 import '../../styles/filesview.css';
 import FileCard from './FileCard';
@@ -9,15 +9,29 @@ const FilesView = () => {
     const [files, setFiles] = useState([]);
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(collection(db, 'myFiles'), (snapshot) => {
-            setFiles(snapshot.docs.map(doc => ({
-                id: doc.id,
-                item: doc.data()
-            })));
-        });
+        const fetchFiles = async () => {
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("No user is signed in");
+                return;
+            }
+            const userId = user.uid;
 
-        // Cleanup the subscription
-        return () => unsubscribe();
+            // Create a query to get files where userId matches the current user's ID
+            const q = query(collection(db, 'myFiles'), where('userId', '==', userId));
+
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                setFiles(snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    item: doc.data()
+                })));
+            });
+
+            // Cleanup the subscription
+            return () => unsubscribe();
+        };
+
+        fetchFiles();
     }, []);
 
     console.log(files);
@@ -28,7 +42,6 @@ const FilesView = () => {
                 Recent Files
             </div>
             <div className="fileView__row">
-                
                 {
                     files.slice(0, 5).map(({ id, item }) => (
                         <FileCard key={id} name={item.caption} /> // Added key for list rendering

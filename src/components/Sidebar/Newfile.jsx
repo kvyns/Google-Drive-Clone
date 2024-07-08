@@ -3,7 +3,7 @@ import '../../styles/newfile.css';
 
 import AddIcon from '@mui/icons-material/Add';
 
-import { storage, db } from '../../firebase';
+import { auth, storage, db } from '../../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, getMetadata } from 'firebase/storage';
 import { Modal, Box, Button, Typography, Input } from '@mui/material';
@@ -36,8 +36,18 @@ const NewFile = () => {
 
   const handleUpload = () => {
     setUploading(true);
+    
+    // Get the current user's ID
+    const user = auth.currentUser;
+    if (!user) {
+      console.error("No user is signed in");
+      setUploading(false);
+      return;
+    }
+    const userId = user.uid;
 
-    const storageRef = ref(storage, `files/${file.name}`);
+    // Create a reference with the user's ID
+    const storageRef = ref(storage, `myfiles/${userId}/${file.name}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on(
@@ -55,6 +65,7 @@ const NewFile = () => {
           console.log('File available at', downloadURL);
 
           addDoc(collection(db, 'myFiles'), {
+            userId: userId, // Store user ID with the file metadata
             timestamp: serverTimestamp(),
             caption: file.name,
             fileUrl: downloadURL,
